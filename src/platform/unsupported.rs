@@ -1,0 +1,1 @@
+compile_error!("Cannot compile for current platform. Only supports Windows and Linux");
