@@ -1,6 +1,3 @@
-use std::io::{stderr, stdout, Write};
-use snafu::prelude::*;
-
 use nix::unistd::Uid;
 use std::process::{Command, Output};
 use regex::Regex;
@@ -8,11 +5,18 @@ use crate::entities::BootEntry;
 
 // public functions (contract)
 
-pub fn ensure_permission() {
+/// Ensure permission requirements to run are met
+/// # Arguments
+/// * `is_output_only`: whether we only need read permissions (no writing to NVRAM)
+/// # returns: `bool`
+/// whether permissions are OK
+pub fn ensure_permission(is_output_only: bool) -> bool {
+    // efibootmgr can run as output only without root permissions
+    if is_output_only { return true; }
     if !Uid::effective().is_root() {
-        eprintln!("You must run this executable with root permissions. Try appending sudo.");
-        std::process::exit(1);
+        return false;
     }
+    true
 }
 
 pub fn get_boot_entries() -> Vec<BootEntry> {
@@ -32,17 +36,11 @@ pub fn set_boot_next(entry: &BootEntry) -> Output {
         .expect("Cannot run 'efibootmgr -n' command")
 }
 
-#[derive(Debug, Snafu)]
-enum SetBootNextError {
-    #[snafu(display("Unable to read configuration from {:?}", boot_entry))]
-    InvalidBootEntry { boot_entry: BootEntry },
-}
-
 // private functions
 
 fn parse_boot_entries(raw_output: &str) -> Vec<BootEntry> {
     // parse the output into entry entities
-    const BOOT_RECORD_EXPR: &str = r"^Boot(?<bootnum>\d\d\d\d)(?<is_active>\*?)(?<description>.*)\t(?<boot_path>.*)$";
+    const BOOT_RECORD_EXPR: &str = r"(?m)^Boot(?<bootnum>\d\d\d\d)(?<is_active>\*?)(?<description>.*)\t(?<boot_path>.*)$";
     // Regex documentation:
     // Group1 (bootnum): BootNum (a four-digit hex number)
     // Group2 (is_active): Inactive asterisk. If empty, entry is inactive, otherwise active.

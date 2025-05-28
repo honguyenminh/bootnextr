@@ -1,5 +1,6 @@
+use tabled::{Tabled};
 /// Represents a boot entry in UEFI NVRAM
-#[derive(Debug)]
+#[derive(Debug, Tabled)]
 pub struct BootEntry {
     /// Full form id of the boot entry. Usually contains more detail than platform_id
     pub id: String,

@@ -18,6 +18,6 @@ pub struct Args {
     #[arg(short, long)]
     pub restart: bool,
 
-    /// Keyword (regex-supported) used to search for the boot record to select
-    pub search_keyword: String
+    /// Keyword (full-text search) used to search for the boot record to select
+    pub search_keyword: Option<String>,
 }
