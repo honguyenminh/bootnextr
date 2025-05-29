@@ -3,7 +3,9 @@ mod cli;
 mod platform;
 mod entities;
 
-use std::io::{stderr, stdout, Write};
+use std::io::{stderr, stdin, stdout, Write};
+use std::num::ParseIntError;
+use std::process::ExitCode;
 use clap::Parser;
 use nameof::name_of;
 use tabled::settings::object::{Columns};
@@ -14,14 +16,18 @@ use crate::cli::args::Args;
 use crate::entities::BootEntry;
 use crate::platform::{get_boot_entries, set_boot_next, ensure_permission};
 
-fn main() {
+// TODO: standardize exit error codes
+fn main() -> ExitCode {
     let args = Args::parse();
 
-    let is_output_only = args.search_keyword.is_none();
+    // cant chain this bc rust is dumb
+    let search_keyword = &args.search_keyword;
+    let is_output_only = search_keyword.is_none();
+
     let valid_permission = ensure_permission(is_output_only);
     if !valid_permission {
         eprintln!("You must run this executable with root permissions. Try appending sudo.");
-        std::process::exit(1);
+        return ExitCode::from(1);
     }
 
     if is_output_only {
@@ -42,9 +48,56 @@ fn main() {
 
     println!("{}", &entry_table);
 
-    if is_output_only { return }
+    if is_output_only { return ExitCode::SUCCESS }
 
-    let target_entry: &BootEntry = &entries[0];
+    let mut entry_matches: Vec<&BootEntry> = vec![];
+    // match search_keyword with entries, fulltext cuz im lazy
+    // unwrap into another var, cuz again, rust
+    let keyword = args.search_keyword.unwrap().to_lowercase();
+    for entry in &entries {
+        if !args.allow_inactive && !entry.is_active {
+            continue;
+        }
+        if !entry.description.to_lowercase().contains(keyword.as_str()) {
+            continue;
+        }
+        entry_matches.push(&entry);
+        if args.force_first {
+            break;
+        }
+    }
+
+    // TODO check if not found
+    if entry_matches.is_empty() {
+        eprintln!("No matches boot entry found for keyword '{}'", keyword);
+        return ExitCode::from(3);
+    }
+
+    let target_entry: &BootEntry =
+        if args.force_first || entry_matches.len() == 1 {
+            entry_matches[0]
+        } else {
+            println!("Found multiple matching boot entries to keyword '{}'", keyword);
+            for (i, entry) in entry_matches.iter().enumerate() {
+                let inactive_slug = if entry.is_active {""} else {"(inactive) "};
+                println!("[{}] {}{} - {}", i, inactive_slug, entry.id, entry.description);
+            }
+            // get user input
+            print!("Pick an entry to boot (with the index in [ ]): ");
+            stdout().flush().unwrap();
+
+            let i = get_stdin_number();
+            if i.is_err() {
+                eprintln!("Invalid input, not a number.");
+                return ExitCode::from(2);
+            }
+            let i = i.unwrap();
+            if i >= entry_matches.len() {
+                eprintln!("Index out of range, input the number in the square brackets like this -> [2]");
+                return ExitCode::from(2);
+            }
+            entry_matches[i]
+        };
 
     let output = set_boot_next(&entries[0]);
 
@@ -52,8 +105,15 @@ fn main() {
         stdout().write(output.stdout.as_slice()).unwrap();
         stderr().write(output.stderr.as_slice()).unwrap();
         eprintln!("ERROR: Cannot set BootNext to {} ({})!", target_entry.id, target_entry.description);
-        return
+        return ExitCode::from(3);
     }
 
-    println!("Set BootNext to {} ({}) successfully", target_entry.id, target_entry.description)
+    println!("Set BootNext to {} ({}) successfully", target_entry.id, target_entry.description);
+    ExitCode::SUCCESS
+}
+
+fn get_stdin_number() -> Result<usize, ParseIntError> {
+    let mut line = String::new();
+    stdin().read_line(&mut line).unwrap();
+    line.trim().parse::<usize>()
 }
