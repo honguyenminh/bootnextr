@@ -3,8 +3,7 @@ mod cli;
 mod platform;
 mod entities;
 
-use std::io::{stderr, stdin, stdout, Write};
-use std::num::ParseIntError;
+use std::io::{stderr, stdout, Write};
 use std::process::ExitCode;
 use clap::Parser;
 use nameof::name_of;
@@ -13,10 +12,12 @@ use tabled::settings::{Remove, Style, Width};
 use tabled::settings::location::ByColumnName;
 use tabled::Table;
 use crate::cli::args::Args;
+use crate::cli::{flush_stdout, get_stdin_confirm, get_stdin_number};
 use crate::entities::BootEntry;
-use crate::platform::{get_boot_entries, set_boot_next, ensure_permission};
+use crate::platform::{get_boot_entries, set_boot_next, ensure_permission, restart};
 
 // TODO: standardize exit error codes
+// TODO: split this shit out.
 fn main() -> ExitCode {
     let args = Args::parse();
 
@@ -67,7 +68,6 @@ fn main() -> ExitCode {
         }
     }
 
-    // TODO check if not found
     if entry_matches.is_empty() {
         eprintln!("No matches boot entry found for keyword '{}'", keyword);
         return ExitCode::from(3);
@@ -83,7 +83,7 @@ fn main() -> ExitCode {
                 println!("[{}] {}{} - {}", i, inactive_slug, entry.id, entry.description);
             }
             // get user input
-            print!("Pick an entry to boot (with the index in [ ]): ");
+            print!("Pick an entry to boot (with the index x in [x]): ");
             stdout().flush().unwrap();
 
             let i = get_stdin_number();
@@ -109,11 +109,19 @@ fn main() -> ExitCode {
     }
 
     println!("Set BootNext to {} ({}) successfully", target_entry.id, target_entry.description);
-    ExitCode::SUCCESS
-}
 
-fn get_stdin_number() -> Result<usize, ParseIntError> {
-    let mut line = String::new();
-    stdin().read_line(&mut line).unwrap();
-    line.trim().parse::<usize>()
+    // restart
+    if args.restart {
+       restart();
+    }
+    print!("Restart now? (Tips: use -r to always restart) [Y/n]: ");
+    flush_stdout();
+    let confirm = get_stdin_confirm(Some(true));
+    if confirm {
+        restart()
+    } else {
+        println!("No restart.")
+    }
+
+    ExitCode::SUCCESS
 }

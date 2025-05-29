@@ -23,3 +23,4 @@ cfg_if! {
 pub use os::ensure_permission;
 pub use os::get_boot_entries;
 pub use os::set_boot_next;
+pub use os::restart;

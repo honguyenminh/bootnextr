@@ -36,6 +36,13 @@ pub fn set_boot_next(entry: &BootEntry) -> Output {
         .expect("Cannot run 'efibootmgr -n' command")
 }
 
+pub fn restart() {
+    Command::new("shutdown")
+        .args(["-r", "now"])
+        .output()
+        .expect("Cannot run 'shutdown -r now' command to restart");
+}
+
 // private functions
 
 fn parse_boot_entries(raw_output: &str) -> Vec<BootEntry> {
