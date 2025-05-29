@@ -12,7 +12,7 @@ Be mindful I use full-text search because this is app from the 90s.
 
 Download the binary from the `Releases` tab on the right, or compile the project from source.
 
-![Compile project](#compile)
+[Compile project](#compile)
 
 Then run in your terminal for full help text:
 
